@@ -89,6 +89,3 @@ Exécutez d'abord `rapport_EDA.ipynb`, qui prépare les données et génère `sp
 
 > Les notebooks des modèles ont été exécutés sur Kaggle (GPU) : adaptez la variable `DATA` en tête de notebook pour une exécution locale.
 
-## Auteur
-
-Jihane — CI3A
