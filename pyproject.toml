@@ -1,0 +1,23 @@
+[project]
+name = "coenergy-assessment"
+version = "0.1.0"
+description = "Estimation des paramètres thermiques de bâtiments (HLC) à partir de séries temporelles simulées, par apprentissage profond (CNN-GRU, TCN, Transformer)."
+readme = "README.md"
+authors = [
+    { name = "jihane", email = "jihanejra4@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "jupyter>=1.1.1",
+    "matplotlib>=3.11.2",
+    "numpy>=2.5.4",
+    "pandas>=3.1.1",
+    "torch>=2.15.0",
+]
+
+[project.scripts]
+coenergy-assessment = "coenergy_assessment:main"
+
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14.0"]
+build-backend = "uv_build"

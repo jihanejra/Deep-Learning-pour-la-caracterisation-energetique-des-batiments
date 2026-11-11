@@ -1,0 +1,61 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+wheels/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# ===== Environnements virtuels (uv) =====
+.venv/
+venv/
+env/
+.env
+.env.*
+
+# ===== Données (≈3 Go, trop lourdes pour Git) =====
+Data/
+*.pt
+*.pth
+*.ckpt
+*.npy
+*.npz
+*.h5
+*.pkl
+
+# ===== Sorties d'entraînement / expériences =====
+checkpoints/
+runs/
+logs/
+outputs/
+lightning_logs/
+wandb/
+mlruns/
+
+# ===== Jupyter =====
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+
+# ===== Tests / outils =====
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ===== IDE / éditeurs =====
+.vscode/
+.idea/
+*.swp
+
+# ===== Système =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== Claude Code (local) =====
+.claude/settings.local.json
