@@ -31,7 +31,7 @@ Data/
 checkpoints/
 runs/
 logs/
-outputs/
+outputs/results/*.npz
 lightning_logs/
 wandb/
 mlruns/
@@ -59,3 +59,12 @@ desktop.ini
 
 # ===== Claude Code (local) =====
 .claude/settings.local.json
+
+# ===== Modèles entraînés du rapport (légers, versionnés pour relire le rapport sans GPU) =====
+!outputs/checkpoints/*.pt
+outputs_quick/
+outputs.zip
+outputs_kaggle.zip
+
+# ===== Documents fournis (énoncé, article) =====
+*.pdf

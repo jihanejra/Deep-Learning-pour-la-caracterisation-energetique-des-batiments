@@ -1,58 +1,79 @@
-# Estimation des paramètres thermiques de bâtiments par apprentissage profond
+# De la série temporelle aux indicateurs thermiques d'un bâtiment
 
-Estimation des indicateurs thermiques d'un bâtiment (coefficient de déperdition **HLC** et constantes de temps **τ**) à partir d'une courte série temporelle de température intérieure et de puissance de chauffage, à l'aide de réseaux de neurones séquentiels (**CNN-GRU**, **TCN**, **Transformer**).
+Assessment de stage coEnergy. À partir de 8 heures de température intérieure `T(t)` et de puissance de chauffage `U(t)`, un réseau de neurones prédit six indicateurs thermiques intrinsèques d'un bâtiment.
 
-## Contexte
+Le rapport complet (physique du problème, analyse exploratoire, méthode, résultats, analyse des erreurs) est le notebook [`rapport.ipynb`](rapport.ipynb).
 
-Le jeu de données contient **1 000 000 de simulations** de bâtiments, tous distincts. Chaque simulation dure **8 heures, au pas d'une minute (480 pas)** et fournit :
+## Le problème
+
+Le jeu de données contient 1 000 000 de simulations de la maison `quentin_house`. Chaque simulation est une variante thermique du même bâtiment (propriétés des parois tirées au hasard), soumise pendant 8 heures, au pas d'une minute, à un scénario de chauffage différent.
 
 | Entrée | Description |
 |---|---|
-| `T(t)` | Température intérieure (°C) |
-| `U(t)` | Puissance de chauffage, signal tout-ou-rien (0 ou 7000 W) |
+| `T(t)` | Température de l'air intérieur (°C) |
+| `U(t)` | Puissance de chauffage, signal binaire pseudo-aléatoire (0 ou 7000 W) |
 
-Le but est de prédire **6 indicateurs** par bâtiment :
+| Famille | Cible | Unité | Signification |
+|---|---|---|---|
+| HLC | `HLC` | W/K | Coefficient de déperdition thermique global |
+| Hb | `HLC_ext` | W/K | Déperditions vers l'extérieur |
+| Hb | `HLC_mit` | W/K | Déperditions vers les espaces mitoyens |
+| CDT | `tau_b` | h | Décharge après saturation (inertie structurelle globale) |
+| CDT | `tau_n` | h | Persistance de la fraîcheur nocturne (après 8 h de refroidissement) |
+| CDT | `tau_inf` | h | Temps de séjour moyen (limite de `tau_n` pour une sollicitation infinie) |
 
-| Cible | Unité | Signification |
-|---|---|---|
-| `HLC` | W/K | Coefficient de déperdition thermique global |
-| `HLC_mit` | W/K | Part du HLC liée à la masse intérieure |
-| `HLC_ext` | W/K | Part du HLC liée à l'enveloppe extérieure |
-| `tau_b` | h | Constante de temps du bâtiment |
-| `tau_n` | h | Constante de temps courte |
-| `tau_inf` | h | Constante de temps intermédiaire |
-
-Ces cibles obéissent à deux contraintes physiques : **HLC = HLC_mit + HLC_ext** et **τ_n < τ_∞ < τ_b**.
+Deux contraintes physiques relient les cibles : `HLC = HLC_ext + HLC_mit` et `tau_n < tau_inf < tau_b`.
 
 ## Démarche
 
-1. **Analyse exploratoire** (`rapport_EDA.ipynb`) : distribution et corrélation des cibles, vérification des contraintes physiques, analyse des excitations (signaux PRBS, simulations sans chauffage, chauffage permanent).
-2. **Découpage stratifié** train / validation / test (80 / 10 / 10 %), qui conserve la proportion de chaque type d'excitation. Le découpage est enregistré dans `Data/processed/splits.pt` pour être réutilisé par tous les notebooks.
-3. **Deux codages des cibles** sont comparés :
-   - **contraint** : `HLC_mit`, `HLC_ext`, `log τ_n`, `log(τ_∞ − τ_n)`, `log(τ_b − τ_∞)`. Les deux contraintes sont respectées par construction.
-   - **direct** : `HLC_mit`, `HLC_ext`, `τ_b`, `τ_n`, `τ_∞`. L'ordre des τ est vérifié après la prédiction.
-4. **Modèles**, tous comparés à une baseline qui prédit la moyenne :
-   - **CNN-GRU** : 3 blocs convolutifs suivis d'un GRU bidirectionnel à 2 couches. C'est l'architecture de l'article de référence.
-   - **CNN-GRU amélioré** : 3 canaux d'entrée physiquement motivés s'ajoutent aux 2 canaux de base : `T − T_libre`, `T − T(0)` et le temps normalisé.
-   - **TCN** : convolutions dilatées avec connexions résiduelles, dont le champ réceptif couvre toute la séquence.
-   - **Transformer à patches** : 30 patches de 16 minutes, un token `[CLS]` et un encodage de position.
-5. **Évaluation en unités physiques** : RMSE, MAE, P95, MAPE et R² pour chaque indicateur, calculés séparément sur les simulations avec et sans excitation.
+1. **Analyse exploratoire** : distributions et corrélations des cibles, vérification des contraintes, nature des excitations, réponse libre, lien entre les entrées et les cibles.
+2. **Découpage stratifié** par régime d'excitation : entraînement 80 %, validation 10 %, test 10 %.
+3. **Codage des cibles** : le réseau prédit 5 valeurs et le HLC est reconstruit par somme. Le codage `contraint` garantit en plus l'ordre des constantes de temps ; il est comparé au codage `direct`.
+4. **Entrées** : 2 canaux (`T` normalisée, `U / P_max`) ou 5 canaux physiquement motivés (ajout de `T − T_libre`, `T − T(0)` et du temps).
+5. **Modèles PyTorch** : CNN-GRU (architecture de l'article de référence) et Transformer à patches, comparés à la moyenne et à une régression linéaire.
+6. **Évaluation en unités physiques** : RMSE, MAE, P95, MAPE et R² par indicateur, par famille et par régime d'excitation ; analyse de l'erreur selon l'excitation ; robustesse au bruit de capteur.
+
+## Résultats
+
+Modèle retenu : **CNN-GRU à 5 canaux, codage contraint**. Métriques sur le test (99 999 simulations), en unités physiques :
+
+| Indicateur | RMSE | Erreur relative moyenne | P95 de l'erreur absolue | R² |
+|---|---|---|---|---|
+| `HLC` | 23,5 W/K | 8,2 % | 46,1 W/K | 0,44 |
+| `HLC_ext` | 12,3 W/K | 9,0 % | 24,0 W/K | 0,48 |
+| `HLC_mit` | 22,3 W/K | 15,7 % | 43,4 W/K | 0,28 |
+| `tau_b` | 9,4 h | 14,7 % | 18,6 h | 0,13 |
+| `tau_n` | 1,7 h | 12,2 % | 3,4 h | 0,26 |
+| `tau_inf` | 7,2 h | 17,8 % | 14,1 h | 0,10 |
+
+- Les contraintes physiques sont respectées sur toutes les prédictions.
+- Tous les réseaux battent la régression linéaire ; le CNN-GRU devance le Transformer.
+- Le codage contraint ne coûte rien en précision ; les canaux physiques apportent un gain faible (0,2 à 1,1 % de RMSE).
+- Les constantes de temps longues (`tau_b`, `tau_inf`) restent peu identifiables en 8 heures de mesure.
+- Un modèle entraîné sans bruit ne résiste pas à un bruit de capteur de 0,25 °C ; un modèle entraîné avec ce bruit reste robuste.
 
 ## Structure du projet
 
 ```
 coenergy-assessment/
-├── Data/                          # non versionné (≈ 3 Go)
-│   ├── raw/                       # batch_1.pt … batch_20.pt (simulations brutes)
-│   └── processed/                 # T.npy, U.npy, Y.npy, target_names.npy, splits.pt
-├── util_assessement.py            # chargement des batchs bruts (.pt)
-├── data_utils.py                  # conversion en .npy compacts (int16) et chargement
-├── rapport_EDA.ipynb              # analyse exploratoire, découpage, baseline
-├── rapport_cnn_gru.ipynb          # CNN-GRU : codage contraint vs direct
-├── rapport_cnn_gru_ameliore.ipynb # CNN-GRU : 2 canaux vs 5 canaux physiques
-├── rapport_tcn.ipynb              # TCN : codage contraint vs direct
-├── rapport_transformer.ipynb      # Transformer : codage contraint vs direct
+├── rapport.ipynb                  # rapport exécutable, livré avec ses sorties
 ├── src/coenergy_assessment/       # package Python
+│   ├── data.py                    # préparation, chargement, découpage
+│   ├── features.py                # descripteurs de l'excitation, canaux d'entrée
+│   ├── targets.py                 # codages des cibles, contraintes physiques
+│   ├── models.py                  # CNN-GRU, Transformer
+│   ├── train.py                   # entraînement, sauvegarde, prédiction
+│   ├── metrics.py                 # métriques par indicateur, famille, régime
+│   ├── baselines.py               # moyenne, régression linéaire
+│   ├── plots.py                   # figures du rapport
+│   └── util_assessement.py        # lecture des batchs bruts (fourni par coEnergy)
+├── outputs/
+│   ├── checkpoints/               # modèles entraînés
+│   └── results/                   # tableaux de résultats (JSON, CSV)
+├── notebooks/archive/             # notebooks de travail antérieurs (non maintenus)
+├── Data/                          # non versionné
+│   ├── raw/                       # batch_1.pt … batch_20.pt
+│   └── processed/                 # T.npy, U.npy, Y.npy, target_names.npy, splits.pt
 ├── pyproject.toml
 └── uv.lock
 ```
@@ -67,27 +88,36 @@ uv sync
 
 ## Données
 
-Les données ne sont pas versionnées. Placez les batchs bruts dans `Data/raw/`, puis convertissez-les une seule fois au format compact :
-
-```python
-from data_utils import prepare_data, load_data
-
-prepare_data("Data/raw", "Data/processed")      # une seule fois
-
-T, U, Y, targets = load_data("Data/processed")  # ou load_data(..., idx=indices) pour un sous-ensemble
-```
-
-`T` est stocké en centièmes de degré et `U` en watts, tous deux en `int16`. Ce format prend deux fois moins de place qu'en `float32`, sans aucune perte. `load_data` lit les fichiers en *memory-map*, ce qui permet de charger un sous-ensemble sans saturer la mémoire.
-
-## Utilisation
+Les données ne sont pas versionnées. Placez les batchs bruts dans `Data/raw/`, puis convertissez-les une seule fois :
 
 ```bash
-uv run jupyter lab
+uv run python -c "import coenergy_assessment as ca; ca.prepare_data('Data/raw', 'Data/processed')"
 ```
 
-Exécutez d'abord `rapport_EDA.ipynb`, qui prépare les données et génère `splits.pt`, puis les notebooks des modèles.
+`T` est stockée en centièmes de degré et `U` en watts, en `int16` : 1,9 Go pour le million de simulations, sans perte.
 
-> Les notebooks des modèles ont été exécutés sur Kaggle (GPU) : adaptez la variable `DATA` en tête de notebook pour une exécution locale.
+## Exécution du rapport
+
+Le rapport a été exécuté sur Kaggle (GPU). Le jeu de données Kaggle contient :
+
+| Fichier | Rôle |
+|---|---|
+| `T.npy`, `U.npy`, `Y.npy`, `target_names.npy` | données prétraitées par `prepare_data` |
+| `splits.pt` | découpage train / validation / test |
+| `coenergy_assessment.zip` | le package (tout le code) |
+| `checkpoints.zip` | les modèles entraînés (facultatif) |
+
+Les chemins sont fixés dans la première cellule de code (`DATA`, `OUT`, `CKPT`). Un modèle déjà présent dans `CKPT` est rechargé au lieu d'être réentraîné : avec `checkpoints.zip`, le rapport s'exécute en une quinzaine de minutes ; sans lui, l'entraînement complet prend environ 1 h 15 sur un GPU T4.
+
+En local, avec le jeu complet, il faut environ 8 Go de mémoire libre :
+
+```bash
+uv run jupyter lab rapport.ipynb
+```
+
+## Référence
+
+R. Nassif, S. Guernouti, P. Stabat, M. Cohen. *Building-specific excitation optimization and simulation-driven machine learning for rapid in situ identification of the heat loss coefficient.* Prépublication SSRN 6928008.
 
 ## Auteur
 
