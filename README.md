@@ -119,6 +119,3 @@ uv run jupyter lab rapport.ipynb
 
 R. Nassif, S. Guernouti, P. Stabat, M. Cohen. *Building-specific excitation optimization and simulation-driven machine learning for rapid in situ identification of the heat loss coefficient.* Prépublication SSRN 6928008.
 
-## Auteur
-
-Jihane — CI3A
